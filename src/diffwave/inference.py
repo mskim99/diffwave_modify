@@ -23,7 +23,8 @@ from argparse import ArgumentParser
 from diffwave.params import AttrDict, params as base_params
 # from diffwave.model import DiffWave
 # from diffwave.model_snn import DiffWave
-from diffwave.model_snn_sj import DiffWave
+from diffwave.model_snn_opt import DiffWave
+# from diffwave.model_snn_sj import DiffWave
 
 import os
 
@@ -88,8 +89,9 @@ def predict(spectrogram=None, model_dir=None, params=None, device=torch.device('
     for n in range(len(alpha) - 1, -1, -1):
       c1 = 1 / alpha[n]**0.5
       c2 = beta[n] / (1 - alpha_cum[n])**0.5
+      audio = c1 * (audio - c2 * model(audio, torch.tensor([T[n]], device=audio.device)).squeeze(1))
       # audio = c1 * (audio - c2 * model(audio, torch.tensor([T[n]], device=audio.device), spectrogram).squeeze(1))
-      audio = c1 * (audio - c2 * model(audio, torch.tensor([T[n]], device=audio.device), spectrogram, num_steps).squeeze(1))
+      # audio = c1 * (audio - c2 * model(audio, torch.tensor([T[n]], device=audio.device), spectrogram, num_steps).squeeze(1))
       if n > 0:
         noise = torch.randn_like(audio)
         sigma = ((1.0 - alpha_cum[n-1]) / (1.0 - alpha_cum[n]) * beta[n])**0.5
@@ -104,8 +106,8 @@ def main(args):
   else:
     spectrogram = None
   for i in range (0, 16):
-    # audio, sr = predict(spectrogram, model_dir=args.model_dir, fast_sampling=args.fast, params=base_params)
-    audio, sr = predict(spectrogram, model_dir=args.model_dir, fast_sampling=args.fast, params=base_params, num_steps=1)
+    audio, sr = predict(spectrogram, model_dir=args.model_dir, fast_sampling=args.fast, params=base_params)
+    # audio, sr = predict(spectrogram, model_dir=args.model_dir, fast_sampling=args.fast, params=base_params, num_steps=1)
     # torchaudio.save(args.output, audio.cpu(), sample_rate=sr)
     np.save(args.output + '_' + str(i).zfill(2) + '.npy', audio.cpu())
 

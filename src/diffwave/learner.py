@@ -25,6 +25,7 @@ from tqdm import tqdm
 from diffwave.dataset import from_path, from_gtzan
 # from diffwave.model import DiffWave
 # from diffwave.model_snn import DiffWave # train_step > predicted()
+# from diffwave.model_snn_opt import DiffWave
 from diffwave.model_snn_sj import DiffWave
 
 def _nested_map(struct, map_fn):
@@ -133,8 +134,9 @@ class DiffWaveLearner:
       noise = torch.randn_like(audio)
       noisy_audio = noise_scale_sqrt * audio + (1.0 - noise_scale)**0.5 * noise
 
+      predicted = self.model(noisy_audio, t)
       # predicted = self.model(noisy_audio, t, spectrogram)
-      predicted = self.model(noisy_audio, t, spectrogram, num_steps=self.params.num_steps)
+      # predicted = self.model(noisy_audio, t, spectrogram, num_steps=self.params.num_steps)
       loss = self.loss_fn(noise, predicted.squeeze(1))
 
     self.scaler.scale(loss).backward()
