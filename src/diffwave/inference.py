@@ -21,19 +21,57 @@ import torchaudio
 from argparse import ArgumentParser
 
 from diffwave.params import AttrDict, params as base_params
-# from diffwave.model import DiffWave
+from diffwave.model import DiffWave
 # from diffwave.model_snn import DiffWave
-from diffwave.model_snn_opt import DiffWave
+# from diffwave.model_snn_opt import DiffWave
 # from diffwave.model_snn_sj import DiffWave
+# from diffwave.model_snn_sj_opt import DiffWave
 
 import os
+from tqdm import tqdm
 
 models = {}
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['RANK'] = '0'
 os.environ['WORLD_SIZE'] = '1'
 os.environ['MASTER_ADDR'] = '127.0.0.1'
+
+
+def remap_keys_ssn_sj(old_state_dict):
+    new_state_dict = {}
+    for k, v in old_state_dict.items():
+        if not k.startswith("_orig_mod."):
+            continue
+
+        # 기본적으로 _orig_mod. 제거
+        new_k = k.replace("_orig_mod.", "")
+
+        # nested diffusion_embedding 처리
+        new_k = new_k.replace("diffusion_embedding.diffusion_embedding.0", "diffusion_embedding.0")
+        new_k = new_k.replace("diffusion_embedding.diffusion_embedding.2", "diffusion_embedding.2")
+
+        # output_projection.1 → res_out + skip_out 구조로 나눠 저장되던 것 해결
+        if ".output_projection.1" in new_k:
+            if "residual_layers" in new_k:
+                res_layer_id = new_k.split(".")[1]
+                if "weight" in new_k:
+                    new_state_dict[f"residual_layers.{res_layer_id}.res_out.weight"] = v
+                    new_state_dict[f"residual_layers.{res_layer_id}.skip_out.weight"] = v
+                elif "bias" in new_k:
+                    new_state_dict[f"residual_layers.{res_layer_id}.res_out.bias"] = v
+                    new_state_dict[f"residual_layers.{res_layer_id}.skip_out.bias"] = v
+                continue  # 이미 저장했으므로 건너뜀
+
+        # skip_out 처리
+        if new_k == "skip_out.weight" or new_k == "skip_out.bias":
+            continue  # 위에서 처리하므로 무시
+
+        # 나머지 정상 키
+        new_state_dict[new_k] = v
+
+    return new_state_dict
+
 
 def predict(spectrogram=None, model_dir=None, params=None, device=torch.device('cuda'), fast_sampling=False, num_steps=1):
   # Lazy load model.
@@ -43,7 +81,9 @@ def predict(spectrogram=None, model_dir=None, params=None, device=torch.device('
     else:
       checkpoint = torch.load(model_dir)
     model = DiffWave(AttrDict(base_params)).to(device)
-    model.load_state_dict(checkpoint['model'])
+    compile_state_dict = checkpoint['model']
+    state_dict = remap_keys_ssn_sj(compile_state_dict)
+    model.load_state_dict(state_dict)
     model.eval()
     models[model_dir] = model
 
@@ -105,11 +145,22 @@ def main(args):
     spectrogram = torch.from_numpy(np.load(args.spectrogram_path))
   else:
     spectrogram = None
-  for i in range (0, 16):
+  idx = 0
+  for _ in range(0, 100):
+
+    if idx > 16:
+        exit(0)
+
     audio, sr = predict(spectrogram, model_dir=args.model_dir, fast_sampling=args.fast, params=base_params)
     # audio, sr = predict(spectrogram, model_dir=args.model_dir, fast_sampling=args.fast, params=base_params, num_steps=1)
     # torchaudio.save(args.output, audio.cpu(), sample_rate=sr)
-    np.save(args.output + '_' + str(i).zfill(2) + '.npy', audio.cpu())
+    try:
+        np.save(args.output + '_' + str(idx).zfill(2) + '.npy', audio.cpu())
+    except Exception as e:
+        print(f"Failed to save sample {idx}: {e}")
+        continue  # 다음 루프로 넘어감
+    idx = idx + 1
+    print(f"Succeed to save sample {idx}")
 
 
 if __name__ == '__main__':

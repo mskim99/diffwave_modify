@@ -23,10 +23,13 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from diffwave.dataset import from_path, from_gtzan
-# from diffwave.model import DiffWave
+from diffwave.model import DiffWave
 # from diffwave.model_snn import DiffWave # train_step > predicted()
 # from diffwave.model_snn_opt import DiffWave
-from diffwave.model_snn_sj import DiffWave
+# from diffwave.model_snn_sj import DiffWave
+# from diffwave.model_snn_sj_opt import DiffWave
+
+torch.backends.cudnn.benchmark = True
 
 def _nested_map(struct, map_fn):
   if isinstance(struct, tuple):
@@ -103,6 +106,7 @@ class DiffWaveLearner:
     device = next(self.model.parameters()).device
     while True:
       for features in tqdm(self.dataset, desc=f'Epoch {self.step // len(self.dataset)}') if self.is_master else self.dataset:
+        # torch.cuda.reset_peak_memory_stats()
         if max_steps is not None and self.step >= max_steps:
           return
         features = _nested_map(features, lambda x: x.to(device) if isinstance(x, torch.Tensor) else x)
@@ -115,6 +119,9 @@ class DiffWaveLearner:
           if self.step % 1000 == 0:
             self.save_to_checkpoint()
         self.step += 1
+
+        # max_memory_allocated = torch.cuda.max_memory_allocated() / (1024 ** 2)  # MB 단위로 변환
+        # print(f"Peak GPU Memory Allocated: {max_memory_allocated:.2f} MB")
 
   def train_step(self, features):
     for param in self.model.parameters():
@@ -134,8 +141,8 @@ class DiffWaveLearner:
       noise = torch.randn_like(audio)
       noisy_audio = noise_scale_sqrt * audio + (1.0 - noise_scale)**0.5 * noise
 
-      predicted = self.model(noisy_audio, t)
-      # predicted = self.model(noisy_audio, t, spectrogram)
+      # predicted = self.model(noisy_audio, t)
+      predicted = self.model(noisy_audio, t, spectrogram)
       # predicted = self.model(noisy_audio, t, spectrogram, num_steps=self.params.num_steps)
       loss = self.loss_fn(noise, predicted.squeeze(1))
 
@@ -173,6 +180,7 @@ def train(args, params):
   else:
     dataset = from_path(args.data_dirs, params)
   model = DiffWave(params).cuda()
+  model = torch.compile(model)
   _train_impl(0, model, dataset, args, params)
 
 

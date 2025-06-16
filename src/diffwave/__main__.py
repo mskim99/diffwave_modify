@@ -21,7 +21,7 @@ from diffwave.learner import train, train_distributed
 from diffwave.params import params
 import os
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['RANK'] = '0'
 os.environ['WORLD_SIZE'] = '1'
 os.environ['MASTER_ADDR'] = '127.0.0.1'
@@ -48,12 +48,12 @@ def main(args):
 
 if __name__ == '__main__':
   parser = ArgumentParser(description='train (or resume training) a DiffWave model')
-  parser.add_argument('model_dir',
+  parser.add_argument('--model_dir', default="", type=str,
       help='directory in which to store model checkpoints and training logs')
-  parser.add_argument('data_dirs', nargs='+',
+  parser.add_argument('--data_dirs', default="", type=str,
       help='space separated list of directories from which to read .wav files for training')
   parser.add_argument('--max_steps', default=None, type=int,
       help='maximum number of training steps')
-  parser.add_argument('--fp16', action='store_true', default=False,
+  parser.add_argument('--fp16', action='store_true', default=True,
       help='use 16-bit floating point operations for training')
   main(parser.parse_args())

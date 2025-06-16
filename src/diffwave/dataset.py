@@ -25,12 +25,12 @@ from torch.utils.data.distributed import DistributedSampler
 
 
 class ConditionalDataset(torch.utils.data.Dataset):
-  def __init__(self, paths):
+  def __init__(self, path):
     super().__init__()
-    self.filenames = []
-    for path in paths:
+    # self.filenames = []
+    # for path in paths:
       # self.filenames += glob(f'{path}/**/*.wav', recursive=True)
-      self.filenames = [file for file in glob(f'{path}/*.npy') if not file.endswith(".spec.npy")]
+    self.filenames = [file for file in glob(f'{path}/*.npy') if not file.endswith(".spec.npy")]
 
   def __len__(self):
     return len(self.filenames)
@@ -48,12 +48,12 @@ class ConditionalDataset(torch.utils.data.Dataset):
 
 
 class UnconditionalDataset(torch.utils.data.Dataset):
-  def __init__(self, paths):
+  def __init__(self, path):
     super().__init__()
     self.filenames = []
-    for path in paths:
+    # for path in paths:
       # self.filenames += glob(f'{path}/**/*.wav', recursive=True)
-      self.filenames = [file for file in glob(f'{path}/*.npy') if not file.endswith(".spec.npy")]
+    self.filenames = [file for file in glob(f'{path}/*.npy') if not file.endswith(".spec.npy")]
 
   def __len__(self):
     return len(self.filenames)
