@@ -63,6 +63,8 @@ class UnconditionalDataset(torch.utils.data.Dataset):
     # spec_filename = f'{audio_filename}.spec.npy'
     # signal, _ = torchaudio.load(audio_filename)
     signal = np.load(audio_filename)
+    signal = (signal - signal.min()) / (signal.max() - signal.min())
+    signal = 2. * signal - 1.
     return {
         'audio': signal,
         'spectrogram': None
